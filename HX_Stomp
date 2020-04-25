@@ -1,0 +1,779 @@
+
+// ******************************** ARDUINO NANO PIN-OUT ************************
+
+//                                   _____________
+// 01 ==============================| 13       12 |==============================
+// 02 ===== Led A BLUE ======= 330 =| xx ===== 11 |==============================
+// 03 ===== Led A2 RED ======= 330 =| xx ===== 10 |==============================
+// 04 ===== FOOTSWITCH A ====== 1M =| xx ===== 09 |==============================
+// 05 ==============================| xx ===== 08 |==============================
+// 06 ==============================| xx ===== 07 |= 330 ====== Led B BLUE ======
+// 07 ==============================| xx ===== 06 |= 330 ====== Led B RED =======
+// 08 ==============================| xx ===== 05 |= 1M ======= SWITCH B ========
+// 09 ==============================| xx ===== 04 |= 330 ====== Led C RED =======
+// 10 ==============================| xx ===== 03 |= 330 ====== Led C BLUE ======
+// 11 ==============================| xx ===== 02 |= 1M ======= SWITCH C ========
+// 12 +++++ TO FOOTSWITCH +++++++++ | 5v +++++++++|+ 220 ++++++ TO 5 PIN DIN JACK 
+// 13                               |             |
+// 14 ----- TO LEDS GROUND ---------| GD ---------|------------ TO 5 PIN DIN JACK 
+// 15 <<<<< TO 2.1MM JACK <<<<<<<<<<|_9V_______TX |> 220 >>>>>> TO 5 PIN DIN JACK 
+
+
+// ******************************** MIDI LIBRARY ********************************
+
+#include <MIDI.h>
+MIDI_CREATE_DEFAULT_INSTANCE();
+
+// ******************************** DEBOUNCE ************************************
+
+int DelayTime = 50; // Delay to slow down transmission
+
+// ******************************** LOOPER STOP TIMER ***************************
+
+unsigned long previousTimer = 0;
+unsigned long currentTimer = 0;
+int interval = 200; //BLINK INTERVAL
+
+// ******************************** MIDI MESSAGES *******************************
+
+//CHANNEL
+int midiChannel = 1;
+
+// FXs
+int FX1 = 5;
+int FX2 = 6;
+int FX3 = 7;
+
+int ccOn = 127;
+int ccOff = 0;
+
+//SNAPSHOTS
+int snapShots = 69;
+
+int snapShot1 = 0;
+int snapShot2 = 1;
+int snapShot3 = 2;
+
+//LOOPER
+int recordOverdub = 60;
+int playStop = 61;
+int redoUndo = 63;
+
+int looperRecord = 127;
+int looperOverdub = 0;
+int looperPlay = 127;
+int looperStop = 0;
+int looperRedo = 127;
+
+// ******************************** SWITCH A ************************************
+
+const int buttonA = 9;
+const int ledABlue = 11;
+const int ledARed = 10;
+
+int bounceTimeA = 50;
+int holdTimeA = 500; //HOLD TIME
+int doubleTimeA = 5;
+
+int lastReadingA = 0;
+int holdA = 0;
+int singleA = 0;
+int LEDstateA = 0;
+
+long onTimeA = 0;
+long lastSwitchTimeA = 0;
+
+// ******************************** SWITCH B ************************************
+
+const int buttonB = 5;
+const int ledBBlue = 7;
+const int ledBRed = 6;
+
+int bounceTimeB = 50;
+int holdTimeB = 500; //HOLD TIME
+int doubleTimeB = 5;
+
+int lastReadingB = 0;
+int holdB = 0;
+int singleB = 0;
+int LEDstateB = 0;
+int stopLed = 0;
+
+long onTimeB = 0;
+long lastSwitchTimeB = 0;
+
+// ******************************** SWITCH C ************************************
+
+const int buttonC = 2;
+const int ledCBlue = 3;
+const int ledCRed = 4;
+
+int bounceTimeC = 50;
+int holdTimeC = 500; //HOLD TIME
+int doubleTimeC = 5;
+
+int lastReadingC = 0;
+int holdC = 0;
+int singleC = 0;
+int LEDstateCBlue = 0;
+int LEDstateCRed = 0;
+
+long onTimeC = 0;
+long lastSwitchTimeC = 0;
+
+// ******************************** BNK 1 - EFFECTS CONTROL *********************
+
+int bank = 1; //DEFAULT BANK
+
+int buttonA1Status = 0; //btn bank 1 start status
+int buttonB1Status = 0; //btn bank 1 start status
+int buttonC1Status = 0; //btn bank 1 start status
+
+// ******************************** BNK 2 - SNAPSHOTS ***************************
+
+int snapshotStatus = 1; //DEFAULT SNAPSHOT
+
+int buttonA2Status = 1; //btn bank 1 start status
+int buttonB2Status = 0; //btn bank 1 start status
+int buttonC2Status = 0; //btn bank 1 start status
+
+// ******************************** BNK 3 - LOOPER ******************************
+
+int looperStatus = 0; //LOOPER DEFAULT STATUS
+
+int buttonA3Status = 0; //btn bank 1 start status
+int buttonB3Status = 0; //btn bank 1 start status
+int buttonC3Status = 0; //btn bank 1 start status
+
+
+// ******************************************************************************
+// ******************************** SETUP ***************************************
+// ******************************************************************************
+
+void setup() {
+  pinMode(buttonA, INPUT);
+  pinMode(ledABlue, OUTPUT);
+  digitalWrite(ledABlue, LOW);
+
+  pinMode(ledARed, OUTPUT);
+  digitalWrite(ledARed, LOW);
+ 
+  pinMode(buttonB, INPUT);
+  pinMode(ledBBlue, OUTPUT);
+  digitalWrite(ledBBlue, LOW);
+
+  pinMode(ledBRed, OUTPUT);
+  digitalWrite(ledBRed, LOW);
+
+  pinMode(buttonC, INPUT);
+  pinMode(ledCBlue, OUTPUT);
+  digitalWrite(ledCBlue, LOW);
+
+  pinMode(ledCRed, OUTPUT);
+  digitalWrite(ledCRed, LOW);
+ 
+  //Serial.begin(9600);
+  MIDI.begin(MIDI_CHANNEL_OMNI);
+
+}
+
+void loop() {
+
+// ******************************** LOOPER STOP LED BLINK ***********************
+
+  currentTimer = millis(); //SAVE CURRENT TIME COUNT
+
+  //ONLY ACTIVATES COUNTER IF IN LOOPER BANK / STOP STATUS
+  if(bank == 3){
+    if(looperStatus == 0){
+        if(currentTimer - previousTimer >= interval == true){
+            //Serial.println(currentTimer);
+            if(stopLed == 0){
+                digitalWrite(ledBRed, 1);
+                stopLed = 1;
+              }else{
+                digitalWrite(ledBRed, 0);
+                stopLed = 0;
+              }
+            previousTimer = currentTimer;
+          }
+      }
+  }
+
+
+// ******************************************************************************
+// ******************************** SWITCH A - CLICK / HOLD DETECTION ***********
+// ******************************************************************************
+
+ int readingA = digitalRead(buttonA);
+
+//DETECT FIRST PRESS
+ if (readingA == HIGH && lastReadingA == LOW) {
+   onTimeA = millis();
+ }
+
+//DETECT IF SWITCH HAS BEEN HELD
+ if (readingA == HIGH && lastReadingA == HIGH) {
+   if ((millis() - onTimeA) > holdTimeA) {
+     holdA = 1;
+   }
+ }
+
+//DETECT IF SWITCH HAS BEEN RELEASED
+ if (readingA == LOW && lastReadingA == HIGH) {
+   if (((millis() - onTimeA) > bounceTimeA) && holdA != 1) {
+     //SHORT CLICK DETECTED
+     onReleaseA(); 
+   }
+
+   //LONG CLICK DETECTED
+   if (holdA == 1) {
+     //Serial.println("BANK 1 SELECTED");
+     holdA = 0;
+     
+     //IF NEW BANK HAS BEEN SELECTED
+     if (bank != 1){
+        bank = 1;
+        
+        resetLEDS();      
+        //RECALL BUTTON AND LED STATUS
+        if(buttonA1Status == 1){
+          digitalWrite(ledARed, 1);
+          }else{
+          digitalWrite(ledARed, 0);
+        }
+        if(buttonB1Status == 1){
+          digitalWrite(ledBRed, 1);
+          }else{
+          digitalWrite(ledBRed, 0);
+        }
+        if(buttonC1Status == 1){
+          digitalWrite(ledCRed, 1);
+          }else{
+          digitalWrite(ledCRed, 0);
+        }
+      }
+   }
+ }
+ 
+ lastReadingA = readingA;
+
+ if (singleA == 1 && (millis() - lastSwitchTimeA) > doubleTimeA) {
+  
+// ******************************** SWITCH A - BANK 1: FX A *********************
+   if(bank == 1){
+     
+      if(buttonA1Status == 0){
+          //Serial.println("FX A ON");
+            
+          //SEND CC MESSAGE: FX A ON
+          MIDI.sendControlChange(FX1,ccOn, midiChannel);
+
+          //UPDATE LED AND STATUS
+          digitalWrite(ledARed, 1);
+          buttonA1Status = 1;
+        }else{
+          //Serial.println("FX A OFF");  
+          
+          //SEND CC MESSAGE: FX A OFF
+          MIDI.sendControlChange(FX1,ccOff, midiChannel);
+
+          //UPDATE LED AND STATUS
+          digitalWrite(ledARed, 0);
+          buttonA1Status = 0;
+        }
+       
+      delay(DelayTime);
+    }
+   
+// ******************************** SWITCH A - BANK 2: SNAPSHOT 1 ***************
+    if(bank == 2){
+     
+      if(snapshotStatus != 1){
+        //Serial.println("SNAPSHOT 1");
+        
+        //SEND CC MESSAGE: SNAPSHOT 1
+        MIDI.sendControlChange(snapShots,snapShot1, midiChannel);
+
+        //UPDATE LED AND STATUS
+        resetLEDS();
+        digitalWrite(ledABlue, 1);
+        digitalWrite(ledARed, 1);
+        snapshotStatus = 1;
+      }
+     
+      delay(DelayTime);
+    }
+   
+// ******************************** SWITCH A - BANK 3: LOOPER RECORD > OVERDUB **
+//  LooperStatus: 0: STOP || 1: RECORD || 2: OVERDUB || 3: PLAY
+
+    if(bank == 3){
+     
+      if(looperStatus == 0){
+        //Serial.println("STOP > RECORD");
+        
+        //SEND CC MESSAGE: START RECORDING
+        MIDI.sendControlChange(recordOverdub,looperRecord, midiChannel);
+        
+        //UPDATE LED AND STATUS
+        resetLEDS();
+        digitalWrite(ledARed, 1);
+        looperStatus = 1;
+      }else if(looperStatus == 1){
+            
+        //Serial.println("RECORD > OVERDUB");
+
+        //SEND CC MESSAGE: START OVERDUB
+        MIDI.sendControlChange(recordOverdub,looperOverdub, midiChannel);         
+        
+        //UPDATE LED AND STATUS
+        resetLEDS();
+        digitalWrite(ledABlue, 1);
+        looperStatus = 2;                   
+      }else if(looperStatus == 2){
+        //Serial.println("OVERDUB > RECORD");
+
+        //SEND CC MESSAGE: START RECORDING
+        MIDI.sendControlChange(recordOverdub,looperRecord, midiChannel);            
+        
+        //UPDATE LED AND STATUS
+        resetLEDS();                             
+        digitalWrite(ledARed, 1);
+        looperStatus = 1;                 
+      }else if(looperStatus == 3){
+        //Serial.println("PLAY > RECORD");
+
+        //SEND CC MESSAGE: START RECORDING
+        MIDI.sendControlChange(recordOverdub,looperRecord, midiChannel);    
+        
+        //UPDATE LED AND STATUS
+        resetLEDS();                             
+        digitalWrite(ledARed, 1);
+        looperStatus = 1;                   
+      }
+      delay(DelayTime);
+    }
+   
+   singleA = 0;
+ }
+
+
+
+// ******************************************************************************
+// ******************************** SWITCH B - CLICK / HOLD DETECTION ***********
+// ******************************************************************************
+
+ int readingB = digitalRead(buttonB);
+
+//DETECT FIRST PRESS
+ if (readingB == HIGH && lastReadingB == LOW) {
+   onTimeB = millis();
+ }
+
+//DETECT IF SWITCH HAS BEEN HELD
+ if (readingB == HIGH && lastReadingB == HIGH) {
+   if ((millis() - onTimeB) > holdTimeB) {
+     holdB = 1;
+   }
+ }
+
+//DETECT IF SWITCH HAS BEEN RELEASED
+ if (readingB == LOW && lastReadingB == HIGH) {
+   if (((millis() - onTimeB) > bounceTimeB) && holdB != 1) {
+     //SHORT CLICK DETECTED
+     onReleaseB();
+   }
+   
+   //LONG CLICK DETECTED
+   if (holdB == 1) {
+     //Serial.println("LONG CLICK");
+     //Serial.println("BANK 2 SELECTED");
+     holdB = 0; //Release Hold Timer
+
+     //IF NEW BANK HAS BEEN SELECTED
+     if (bank != 2){
+        bank = 2;
+        
+        resetLEDS();
+                                                
+        // UPDATE LEDS
+        if(snapshotStatus == 1){
+          digitalWrite(ledABlue, 1);
+          digitalWrite(ledARed, 1);
+        }
+        // UPDATE LEDS
+        if(snapshotStatus == 2){
+          digitalWrite(ledBBlue, 1);
+          digitalWrite(ledBRed, 1);
+        }
+        // UPDATE LEDS
+        if(snapshotStatus == 3){
+          digitalWrite(ledCBlue, 1);
+          digitalWrite(ledCRed, 1);
+        }
+      }
+   }
+ }
+ 
+ lastReadingB = readingB;
+
+ if (singleB == 1 && (millis() - lastSwitchTimeB) > doubleTimeB) {
+   
+// ******************************** SWITCH B - BANK 1: FX B *********************
+   if(bank == 1){
+     
+      if(buttonB1Status == 0){
+          //Serial.println("FX B ON");
+          
+          //SEND CC MESSAGE: FX B ON
+          MIDI.sendControlChange(FX2,ccOn, midiChannel);      
+
+          //UPDATE LED AND STATUS
+          digitalWrite(ledBRed, 1);       
+          buttonB1Status = 1;                  
+        }else{
+          //Serial.println("FX B OFF");
+          
+          //SEND CC MESSAGE: FX B OFF
+          MIDI.sendControlChange(FX2,ccOff, midiChannel);    
+
+          //UPDATE LED AND STATUS
+          digitalWrite(ledBRed, 0);           
+          buttonB1Status = 0;                 
+        }
+       
+      delay(DelayTime);
+    }
+
+// ******************************** SWITCH B - BANK 2: SNAPSHOT 2 ***************
+    if(bank == 2){
+     
+      if(snapshotStatus != 2){
+        //Serial.println("SNAPSHOT 2");
+        
+        //SEND CC MESSAGE: SNAPSHOT 2
+        MIDI.sendControlChange(snapShots,snapShot2, midiChannel);          
+        
+        //UPDATE LED AND STATUS
+        resetLEDS();                         
+        digitalWrite(ledBBlue, 1);                        
+        digitalWrite(ledBRed, 1);
+        snapshotStatus = 2;                         
+      }
+     
+      delay(DelayTime);
+    }
+   
+// ******************************** SWITCH B - BANK 3: LOOPER PLAY > STOP *******
+//  LooperStatus: 0: STOP || 1: RECORD || 2: OVERDUB || 3: PLAY
+
+    if(bank == 3){
+     
+      if(looperStatus == 0){
+        //Serial.println("STOP > PLAY");
+        
+        //SEND CC MESSAGE: START PLAYING
+        MIDI.sendControlChange(playStop,looperPlay, midiChannel);       
+        
+        //UPDATE LED AND STATUS
+        resetLEDS();                       
+        digitalWrite(ledBBlue, 1);
+        looperStatus = 3;                               
+      }else if(looperStatus == 1){
+        //Serial.println("RECORD > PLAY");
+        
+        //SEND CC MESSAGE: START PLAYING
+        MIDI.sendControlChange(playStop,looperPlay, midiChannel);      
+        
+        //UPDATE LED AND STATUS
+        resetLEDS();                    
+        digitalWrite(ledBBlue, 1);
+        looperStatus = 3;               
+      }else if(looperStatus == 2){
+        //Serial.println("OVERDUB > PLAY");
+        
+        //SEND CC MESSAGE: START PLAYING
+        MIDI.sendControlChange(playStop,looperPlay, midiChannel);   
+        
+        //UPDATE LED AND STATUS
+        resetLEDS();                       
+        digitalWrite(ledBBlue, 1);
+        looperStatus = 3;                             
+      }else if(looperStatus == 3){
+        //Serial.println("STOP");
+        
+        //SEND CC MESSAGE: START STOP
+        MIDI.sendControlChange(playStop,looperStop, midiChannel);   
+        
+        //UPDATE LED AND STATUS
+        resetLEDS();                      
+        looperStatus = 0;    
+      }
+     
+      delay(DelayTime);
+    }
+
+   singleB = 0;
+ }
+
+
+
+// ******************************************************************************
+// ******************************** SWITCH C - CLICK / HOLD DETECTION ***********
+// ******************************************************************************
+
+ int readingC = digitalRead(buttonC);
+
+//DETECT FIRST PRESS
+ if (readingC == HIGH && lastReadingC == LOW) {
+   onTimeC = millis();
+ }
+
+//DETECT IF SWITCH HAS BEEN HELD
+ if (readingC == HIGH && lastReadingC == HIGH) {
+   if ((millis() - onTimeC) > holdTimeC) {
+     holdC = 1;
+   }
+ }
+
+//DETECT IF SWITCH HAS BEEN RELEASED
+ if (readingC == LOW && lastReadingC == HIGH) {
+   if (((millis() - onTimeC) > bounceTimeC) && holdC != 1) {
+     //SHORT CLICK DETECTED
+     onReleaseC();
+   }
+   
+   //LONG CLICK DETECTED
+   if (holdC == 1) {
+     //Serial.println("BANK 3 SELECTED");
+     holdC = 0; //Release Hold Timer
+
+     //IF NEW BANK HAS BEEN SELECTED
+     if (bank != 3){
+        bank = 3;
+        resetLEDS();
+                           
+        // UPDATE LEDS
+        if(looperStatus == 1){
+          digitalWrite(ledARed, 1);
+        }
+        if(looperStatus == 2){
+          digitalWrite(ledABlue, 1);
+        }
+        if(looperStatus == 3){
+          digitalWrite(ledARed, 1);
+        }
+    
+      }
+   }
+ }
+ 
+ lastReadingC = readingC;
+
+ if (singleC == 1 && (millis() - lastSwitchTimeC) > doubleTimeC) {
+
+// ******************************** SWITCH C - BANK 1: FX C *********************
+   if(bank == 1){
+     
+      if(buttonC1Status == 0){
+          //Serial.println("FX C ON");
+          
+          //SEND CC MESSAGE: FX C ON
+          MIDI.sendControlChange(FX3,ccOn, midiChannel);
+
+          //UPDATE LED AND STATUS             
+          digitalWrite(ledCRed, 1);                    
+          buttonC1Status = 1;                    
+        }else{
+          //Serial.println("FX C OFF");
+
+          //SEND CC MESSAGE: FX C OFF
+          MIDI.sendControlChange(FX3,ccOff, midiChannel);           
+          
+          //UPDATE LED AND STATUS
+          digitalWrite(ledCRed, 0);                   
+          buttonC1Status = 0;            
+        }
+       
+      delay(DelayTime);
+    }
+   
+// ******************************** SWITCH C - BANK 2: SNAPSHOT 3 ***************
+    if(bank == 2){
+     
+      if(snapshotStatus != 3){
+        //Serial.println("SNAPSHOT 3");
+        
+        //SEND CC MESSAGE: SNAPSHOT 3
+        MIDI.sendControlChange(snapShots,snapShot3, midiChannel);          
+        
+        //UPDATE LED AND STATUS
+        resetLEDS();                          
+        digitalWrite(ledCBlue, 1);              
+        digitalWrite(ledCRed, 1);
+        snapshotStatus = 3;                              
+      }
+     
+      delay(DelayTime);
+    }
+
+// ******************************** SWITCH C - BANK 3: LOOPER REDO > UNDO *******
+//  LooperStatus: 0: STOP || 1: RECORD || 2: OVERDUB || 3: PLAY
+
+    if(bank == 3){
+     
+      if(looperStatus == 1){
+        //Serial.println("RECORD REDO / UNDO");
+        
+        //SEND CC MESSAGE: REDO / UNDO
+        MIDI.sendControlChange(redoUndo,looperRedo, midiChannel);      
+      } else if(looperStatus == 2){
+        //Serial.println("OVERDUB REDO / UNDO");
+        
+        //SEND CC MESSAGE: REDO / UNDO
+        MIDI.sendControlChange(redoUndo,looperRedo, midiChannel);    
+      }
+     
+      delay(DelayTime);
+    }
+   
+   singleC = 0;
+ }
+
+}
+
+// ******************************** SWITCH A ************************************
+
+ void onReleaseA() {
+
+ if ((millis() - lastSwitchTimeA) >= doubleTimeA) {
+   singleA = 1;
+   lastSwitchTimeA = millis();
+   return;
+ }  
+
+ if ((millis() - lastSwitchTimeA) < doubleTimeA) {
+   toggleLEDA();
+   singleA = 0;
+   lastSwitchTimeA = millis();
+ }  
+
+}
+
+void toggleLEDA() {
+ if (LEDstateA == 0) {
+   LEDstateA = 1;
+ } else {
+   LEDstateA = 0;
+ }
+ //digitalWrite(ledBankRed, LEDstateA);  
+}
+ 
+void invertLEDA() {
+ if (LEDstateA == 0) {
+ //digitalWrite(ledBankRed, 1);
+ } else {
+ //digitalWrite(ledBankRed, 0);
+ }
+}
+
+// ******************************** SWITCH B ************************************
+
+void onReleaseB() {
+
+ if ((millis() - lastSwitchTimeB) >= doubleTimeB) {
+   singleB = 1;
+   lastSwitchTimeB = millis();
+   return;
+ }  
+
+ if ((millis() - lastSwitchTimeB) < doubleTimeB) {
+   toggleLEDB();
+   singleB = 0;
+   lastSwitchTimeB = millis();
+ }  
+
+}
+
+void toggleLEDB() {
+ if (LEDstateB == 0) {
+   LEDstateB = 1;
+ } else {
+   LEDstateB = 0;
+ }
+ //digitalWrite(ledBankBlue, LEDstateB);  
+}
+ 
+void invertLEDB() {
+ if (LEDstateB == 0) {
+ //digitalWrite(ledBankBlue, 1);
+ } else {
+ //digitalWrite(ledBankBlue, 0);
+ }
+}
+
+void invertBLED() {
+ if (LEDstateB == 0) {
+ digitalWrite(ledBRed, 1);
+ } else {
+ digitalWrite(ledBRed, 0);
+ }
+}
+
+// ******************************** SWITCH C ************************************
+
+ void onReleaseC() {
+
+ if ((millis() - lastSwitchTimeC) >= doubleTimeC) {
+   singleC = 1;
+   lastSwitchTimeC = millis();
+   return;
+ }  
+
+ if ((millis() - lastSwitchTimeC) < doubleTimeC) {
+   toggleLEDC();
+   singleC = 0;
+   lastSwitchTimeC = millis();
+ }  
+
+}
+
+void toggleLEDC() {
+ if (LEDstateCBlue == 0) {
+   LEDstateCBlue = 1;
+ } else {
+   LEDstateCBlue = 0;
+ }
+ if (LEDstateCRed == 0) {
+   LEDstateCRed = 1;
+ } else {
+   LEDstateCRed = 0;
+ }
+ //digitalWrite(ledBankBlue, LEDstateCBlue);
+ //digitalWrite(ledBankRed, LEDstateCRed);  
+}
+ 
+void invertLEDC() {
+ if (LEDstateCBlue == 0) {
+ //digitalWrite(ledBankBlue, 1);
+ } else {
+ //digitalWrite(ledBankBlue, 0);
+ }
+ if (LEDstateCRed == 0) {
+ //digitalWrite(ledBankRed, 1);
+ } else {
+ //digitalWrite(ledBankRed, 0);
+ }
+}
+
+// ******************************** RESET LEDS **********************************
+
+void resetLEDS() {
+ digitalWrite(ledABlue, 0);
+ digitalWrite(ledARed, 0);
+ digitalWrite(ledBBlue, 0);
+ digitalWrite(ledBRed, 0);
+ digitalWrite(ledCBlue, 0);
+ digitalWrite(ledCRed, 0);
+}
